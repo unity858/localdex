@@ -21,6 +21,7 @@ import coil.compose.rememberAsyncImagePainter
 import coil.request.ImageRequest
 import com.example.localpokedex.ui.theme.LocalPokedexTheme
 import com.google.gson.Gson
+import com.google.gson.annotations.SerializedName
 import com.google.gson.reflect.TypeToken
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -36,7 +37,9 @@ data class PokemonStats(
     val HP: Int,
     val Attack: Int,
     val Defense: Int,
+    @SerializedName("Sp. Attack")
     val SpAttack: Int,
+    @SerializedName("Sp. Defense")
     val SpDefense: Int,
     val Speed: Int
 )
