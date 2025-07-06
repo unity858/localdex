@@ -5,18 +5,25 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.Card
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.navigation.NavType
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
 import coil.compose.rememberAsyncImagePainter
 import coil.request.ImageRequest
 import com.example.localpokedex.ui.theme.LocalPokedexTheme
@@ -52,22 +59,76 @@ data class Pokemon(
 )
 
 class MainActivity : ComponentActivity() {
+    @OptIn(ExperimentalMaterial3Api::class)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
             LocalPokedexTheme {
-                Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    val pokemon = remember { mutableStateOf<List<Pokemon>>(emptyList()) }
-                    
-                    LaunchedEffect(Unit) {
-                        pokemon.value = loadPokemonData()
+                val pokemon = remember { mutableStateOf<List<Pokemon>>(emptyList()) }
+                
+                LaunchedEffect(Unit) {
+                    pokemon.value = loadPokemonData()
+                }
+
+                val navController = rememberNavController()
+                
+                NavHost(
+                    navController = navController,
+                    startDestination = "pokemonList"
+                ) {
+                    composable("pokemonList") {
+                        Scaffold(
+                            topBar = {
+                                TopAppBar(
+                                    title = { Text("Pokédex") },
+                                    colors = TopAppBarDefaults.topAppBarColors(
+                                        containerColor = MaterialTheme.colorScheme.primaryContainer,
+                                        titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                                    )
+                                )
+                            }
+                        ) { innerPadding ->
+                            PokemonList(
+                                pokemons = pokemon.value,
+                                modifier = Modifier.padding(innerPadding),
+                                onPokemonClick = { pokemonId ->
+                                    navController.navigate("pokemonDetail/$pokemonId")
+                                }
+                            )
+                        }
                     }
-                    
-                    PokemonList(
-                        pokemons = pokemon.value,
-                        modifier = Modifier.padding(innerPadding)
-                    )
+                    composable(
+                        route = "pokemonDetail/{pokemonId}",
+                        arguments = listOf(navArgument("pokemonId") { type = NavType.IntType })
+                    ) { backStackEntry ->
+                        val pokemonId = backStackEntry.arguments?.getInt("pokemonId") ?: return@composable
+                        val selectedPokemon = pokemon.value.find { it.id == pokemonId }
+                        
+                        if (selectedPokemon != null) {
+                            Scaffold(
+                                topBar = {
+                                    TopAppBar(
+                                        title = { Text(selectedPokemon.name.english) },
+                                        navigationIcon = {
+                                            IconButton(onClick = { navController.navigateUp() }) {
+                                                Icon(Icons.Default.ArrowBack, "Back")
+                                            }
+                                        },
+                                        colors = TopAppBarDefaults.topAppBarColors(
+                                            containerColor = MaterialTheme.colorScheme.primaryContainer,
+                                            titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                                        )
+                                    )
+                                }
+                            ) { innerPadding ->
+                                PokemonDetailScreen(
+                                    pokemon = selectedPokemon,
+                                    modifier = Modifier.padding(innerPadding)
+                                )
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -81,100 +142,180 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun PokemonList(pokemons: List<Pokemon>, modifier: Modifier = Modifier) {
+fun PokemonList(
+    pokemons: List<Pokemon>,
+    modifier: Modifier = Modifier,
+    onPokemonClick: (Int) -> Unit
+) {
     LazyColumn(
         modifier = modifier.fillMaxSize(),
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         items(pokemons) { pokemon ->
-            PokemonCard(pokemon = pokemon)
+            PokemonCard(
+                pokemon = pokemon,
+                onClick = { onPokemonClick(pokemon.id) }
+            )
         }
     }
 }
 
 @Composable
-fun PokemonCard(pokemon: Pokemon, modifier: Modifier = Modifier) {
+fun PokemonCard(
+    pokemon: Pokemon,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
     Card(
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
     ) {
-        Column(
+        Row(
             modifier = Modifier
                 .padding(16.dp)
-                .fillMaxWidth()
+                .fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                val imageFileName = String.format("%03d", pokemon.id)
-                val painter = rememberAsyncImagePainter(
-                    ImageRequest.Builder(LocalContext.current)
-                        .data("file:///android_asset/pokemon.json-master/thumbnails/$imageFileName.png")
-                        .build()
+            val imageFileName = String.format("%03d", pokemon.id)
+            val painter = rememberAsyncImagePainter(
+                ImageRequest.Builder(LocalContext.current)
+                    .data("file:///android_asset/pokemon.json-master/thumbnails/$imageFileName.png")
+                    .build()
+            )
+            
+            Image(
+                painter = painter,
+                contentDescription = pokemon.name.english,
+                modifier = Modifier.size(80.dp)
+            )
+            
+            Spacer(modifier = Modifier.width(16.dp))
+            
+            Column {
+                Text(
+                    text = "#${String.format("%03d", pokemon.id)}",
+                    style = MaterialTheme.typography.bodyMedium
                 )
-                
-                Image(
-                    painter = painter,
-                    contentDescription = pokemon.name.english,
-                    modifier = Modifier.size(80.dp)
+                Text(
+                    text = pokemon.name.english,
+                    style = MaterialTheme.typography.titleLarge
                 )
-                
-                Spacer(modifier = Modifier.width(16.dp))
-                
-                Column {
-                    Text(
-                        text = "#${String.format("%03d", pokemon.id)}",
-                        style = MaterialTheme.typography.bodyMedium
-                    )
-                    Text(
-                        text = pokemon.name.english,
-                        style = MaterialTheme.typography.titleLarge
-                    )
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        pokemon.type.forEach { type ->
-                            Text(
-                                text = type,
-                                style = MaterialTheme.typography.bodyMedium,
-                                modifier = Modifier.padding(vertical = 4.dp)
-                            )
-                        }
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    pokemon.type.forEach { type ->
+                        Text(
+                            text = type,
+                            style = MaterialTheme.typography.bodyMedium,
+                            modifier = Modifier.padding(vertical = 4.dp)
+                        )
                     }
                 }
             }
-            
-            Spacer(modifier = Modifier.height(8.dp))
-            
-            // Stats
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly
-            ) {
-                StatColumn("HP", pokemon.base.HP)
-                StatColumn("ATK", pokemon.base.Attack)
-                StatColumn("DEF", pokemon.base.Defense)
-                StatColumn("SP.ATK", pokemon.base.SpAttack)
-                StatColumn("SP.DEF", pokemon.base.SpDefense)
-                StatColumn("SPD", pokemon.base.Speed)
-            }
         }
     }
 }
 
 @Composable
-fun StatColumn(label: String, value: Int) {
+fun PokemonDetailScreen(
+    pokemon: Pokemon,
+    modifier: Modifier = Modifier
+) {
     Column(
+        modifier = modifier
+            .fillMaxSize()
+            .padding(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.bodySmall
+        val imageFileName = String.format("%03d", pokemon.id)
+        val painter = rememberAsyncImagePainter(
+            ImageRequest.Builder(LocalContext.current)
+                .data("file:///android_asset/pokemon.json-master/thumbnails/$imageFileName.png")
+                .build()
         )
+        
+        Image(
+            painter = painter,
+            contentDescription = pokemon.name.english,
+            modifier = Modifier.size(200.dp)
+        )
+        
+        Spacer(modifier = Modifier.height(16.dp))
+        
         Text(
-            text = value.toString(),
-            style = MaterialTheme.typography.bodyMedium
+            text = "#${String.format("%03d", pokemon.id)} ${pokemon.name.english}",
+            style = MaterialTheme.typography.headlineMedium
+        )
+        
+        Spacer(modifier = Modifier.height(8.dp))
+        
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            pokemon.type.forEach { type ->
+                Text(
+                    text = type,
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.padding(horizontal = 8.dp)
+                )
+            }
+        }
+        
+        Spacer(modifier = Modifier.height(24.dp))
+        
+        Text(
+            text = "Base Stats",
+            style = MaterialTheme.typography.titleLarge,
+            modifier = Modifier.padding(bottom = 16.dp)
+        )
+        
+        StatBar("HP", pokemon.base.HP, MaterialTheme.colorScheme.primary)
+        StatBar("Attack", pokemon.base.Attack, MaterialTheme.colorScheme.error)
+        StatBar("Defense", pokemon.base.Defense, MaterialTheme.colorScheme.tertiary)
+        StatBar("Sp. Attack", pokemon.base.SpAttack, MaterialTheme.colorScheme.secondary)
+        StatBar("Sp. Defense", pokemon.base.SpDefense, MaterialTheme.colorScheme.tertiary)
+        StatBar("Speed", pokemon.base.Speed, MaterialTheme.colorScheme.primary)
+    }
+}
+
+@Composable
+fun StatBar(
+    label: String,
+    value: Int,
+    color: Color,
+    maxValue: Int = 255
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.bodyLarge,
+                modifier = Modifier.width(100.dp)
+            )
+            Text(
+                text = value.toString(),
+                style = MaterialTheme.typography.bodyLarge,
+                textAlign = TextAlign.End,
+                modifier = Modifier.width(50.dp)
+            )
+        }
+        LinearProgressIndicator(
+            progress = value.toFloat() / maxValue,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(8.dp),
+            color = color
         )
     }
 }
