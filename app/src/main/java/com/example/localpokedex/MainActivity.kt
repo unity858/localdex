@@ -1,5 +1,6 @@
 package com.example.localpokedex
 
+import android.content.Context
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -9,6 +10,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material3.*
@@ -59,6 +62,21 @@ data class Pokemon(
 )
 
 class MainActivity : ComponentActivity() {
+    companion object {
+        fun saveNote(context: Context, pokemonId: Int, note: String) {
+            val sharedPref = context.getSharedPreferences("pokemon_notes", Context.MODE_PRIVATE)
+            with(sharedPref.edit()) {
+                putString("note_$pokemonId", note)
+                apply()
+            }
+        }
+
+        fun loadNote(context: Context, pokemonId: Int): String {
+            val sharedPref = context.getSharedPreferences("pokemon_notes", Context.MODE_PRIVATE)
+            return sharedPref.getString("note_$pokemonId", "") ?: ""
+        }
+    }
+
     @OptIn(ExperimentalMaterial3Api::class)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -218,14 +236,21 @@ fun PokemonCard(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PokemonDetailScreen(
     pokemon: Pokemon,
     modifier: Modifier = Modifier
 ) {
+    val context = LocalContext.current
+    var note by remember(pokemon.id) {
+        mutableStateOf(MainActivity.loadNote(context, pokemon.id))
+    }
+
     Column(
         modifier = modifier
             .fillMaxSize()
+            .verticalScroll(rememberScrollState())
             .padding(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
@@ -279,6 +304,29 @@ fun PokemonDetailScreen(
         StatBar("Sp. Attack", pokemon.base.SpAttack, MaterialTheme.colorScheme.secondary)
         StatBar("Sp. Defense", pokemon.base.SpDefense, MaterialTheme.colorScheme.tertiary)
         StatBar("Speed", pokemon.base.Speed, MaterialTheme.colorScheme.primary)
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        Text(
+            text = "Notes",
+            style = MaterialTheme.typography.titleLarge,
+            modifier = Modifier.padding(bottom = 8.dp)
+        )
+
+        OutlinedTextField(
+            value = note,
+            onValueChange = { newNote ->
+                note = newNote
+                MainActivity.saveNote(context, pokemon.id, newNote)
+            },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(120.dp),
+            label = { Text("Add notes about ${pokemon.name.english}") },
+            textStyle = MaterialTheme.typography.bodyLarge
+        )
+
+        Spacer(modifier = Modifier.height(16.dp))
     }
 }
 
